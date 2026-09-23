@@ -6,13 +6,18 @@ const protect = async (req, res, next) => {
   try {
     let token = req.cookies?.saasly_token
 
+    // Optional Bearer token support
     if (
       !token &&
-      req.headers.authorization?.startsWith("Bearer ")
+      req.headers.authorization?.startsWith(
+        "Bearer "
+      )
     ) {
-      token = req.headers.authorization.split(" ")[1]
+      token =
+        req.headers.authorization.split(" ")[1]
     }
 
+    // No token
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -20,19 +25,37 @@ const protect = async (req, res, next) => {
       })
     }
 
+    // JWT secret must exist
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "JWT_SECRET is not configured."
+      )
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Authentication configuration error.",
+      })
+    }
+
+    // Verify JWT
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
     )
 
-    if (!decoded.userId) {
+    if (!decoded?.userId) {
       return res.status(401).json({
         success: false,
-        message: "Invalid authentication token.",
+        message:
+          "Invalid authentication token.",
       })
     }
 
-    const user = await User.findById(decoded.userId)
+    // Find user
+    const user = await User.findById(
+      decoded.userId
+    )
 
     if (!user) {
       return res.status(401).json({
@@ -41,12 +64,20 @@ const protect = async (req, res, next) => {
       })
     }
 
+    // Attach authenticated user
     req.user = user
+
     next()
   } catch (error) {
+    console.error(
+      "Authentication error:",
+      error.message
+    )
+
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired authentication token.",
+      message:
+        "Invalid or expired authentication token.",
     })
   }
 }

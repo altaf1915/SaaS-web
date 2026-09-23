@@ -7,16 +7,18 @@ const User = require("../models/User")
 // Authentication cookie helpers
 // --------------------------------------------------
 
-const getCookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite:
+const getCookieOptions = () => {
+  const isProduction =
     process.env.NODE_ENV === "production"
-      ? "none"
-      : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: "/",
-})
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  }
+}
 
 const setAuthCookie = (res, token) => {
   res.cookie(
@@ -27,22 +29,24 @@ const setAuthCookie = (res, token) => {
 }
 
 const clearAuthCookie = (res) => {
-  res.clearCookie(
-    "saasly_token",
-    {
-      httpOnly: true,
-      secure:
-        process.env.NODE_ENV === "production",
-      sameSite:
-        process.env.NODE_ENV === "production"
-          ? "none"
-          : "lax",
-      path: "/",
-    }
-  )
+  res.clearCookie("saasly_token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite:
+      process.env.NODE_ENV === "production"
+        ? "none"
+        : "lax",
+    path: "/",
+  })
 }
 
 const createToken = (userId) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error(
+      "JWT_SECRET is not configured."
+    )
+  }
+
   return jwt.sign(
     {
       userId,
@@ -67,7 +71,6 @@ const register = async (req, res) => {
       password,
     } = req.body
 
-    // Validate required fields
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -81,18 +84,19 @@ const register = async (req, res) => {
     if (trimmedName.length < 2) {
       return res.status(400).json({
         success: false,
-        message: "Name must be at least 2 characters.",
+        message:
+          "Name must be at least 2 characters.",
       })
     }
 
     if (trimmedName.length > 100) {
       return res.status(400).json({
         success: false,
-        message: "Name cannot exceed 100 characters.",
+        message:
+          "Name cannot exceed 100 characters.",
       })
     }
 
-    // Validate password length
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -109,12 +113,10 @@ const register = async (req, res) => {
       })
     }
 
-    // Normalize email
     const normalizedEmail = email
       .trim()
       .toLowerCase()
 
-    // Check existing user
     const existingUser = await User.findOne({
       email: normalizedEmail,
     })
@@ -127,7 +129,6 @@ const register = async (req, res) => {
       })
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(12)
 
     const hashedPassword = await bcrypt.hash(
@@ -135,19 +136,16 @@ const register = async (req, res) => {
       salt
     )
 
-    // Create user
     const user = await User.create({
       name: trimmedName,
       email: normalizedEmail,
       password: hashedPassword,
     })
 
-    // Generate JWT
     const token = createToken(
       user._id.toString()
     )
 
-    // Set authentication cookie
     setAuthCookie(res, token)
 
     return res.status(201).json({
@@ -197,7 +195,6 @@ const login = async (req, res) => {
       .trim()
       .toLowerCase()
 
-    // Explicitly select password because the schema hides it.
     const user = await User.findOne({
       email: normalizedEmail,
     }).select("+password")
@@ -210,7 +207,6 @@ const login = async (req, res) => {
       })
     }
 
-    // Compare password with stored hash
     const passwordMatches =
       await bcrypt.compare(
         password,
@@ -229,7 +225,6 @@ const login = async (req, res) => {
       user._id.toString()
     )
 
-    // Set authentication cookie
     setAuthCookie(res, token)
 
     return res.status(200).json({
@@ -261,9 +256,7 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(
-      req.user.userId
-    )
+    const user = req.user
 
     if (!user) {
       return res.status(404).json({
