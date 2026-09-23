@@ -39,7 +39,7 @@ app.use(
 
 const allowedOrigins = (
   process.env.CLIENT_URL ||
-  "http://localhost:5173"
+  "saa-s-web-delta.vercel.app"
 )
   .split(",")
   .map((origin) => origin.trim())
